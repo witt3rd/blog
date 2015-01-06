@@ -2,7 +2,7 @@
 
 Our goal is to use the [PEG-based parser](http://en.wikipedia.org/wiki/Parsing_expression_grammar) [Parboild2](https://github.com/sirthias/parboiled2) in order to parse [N-Triples](http://www.w3.org/2001/sw/RDFCore/ntriples) documents as part of [Maana’s](http://maana.io) support for [Linked Data](http://linkeddata.org).
 
-Our test project for this article can be found [here](https://github.com/witt3rd/linked-data). I won’t bother going into the setup or basic concepts of PEGs or PB2, since they are all covered well enough on the PB2 Github page. Instead, we are going to just dive right in building our grammar and parsing some sample files.
+Our test project for this article can be found [here](https://github.com/witt3rd/linked-data). We won’t bother going into the setup or basic concepts of PEGs or PB2, since they are all covered well enough on the PB2 Github page. Instead, we are going to just dive right in building our grammar and parsing some sample files.
 
 ## N-Triples
 
@@ -173,7 +173,7 @@ Now that we have some richer types to work with, we need to expand our parser ru
   private def nonBlank: Rule1[Line] = rule { (comment | triple) ~ EOI }
 ~~~~
 
-Note that I am now using explicit typing.  This isn't strictly necessary, but it helps to make clear what is flowing between the various parsers.
+Note that we are now using explicit typing.  This isn't strictly necessary, but it helps to make clear what is flowing between the various parsers.
 
 For a blank line, we have a rule which is looking for 0+ whitespace characters followed by the end-of-input (EOI), at which point we push a new `Blank` object onto the stack.
 
@@ -213,7 +213,7 @@ The last top-level object we are interested in is the actual `Triple`.  A triple
   // triple ::= subject ws+ predicate ws+ object ws* '.' ws*   
   private def triple: Rule1[Triple] = rule {
     zeroOrMore(ws) ~ subject ~>
-      ((s : Subject) => Triple(s,UriRef(""),UriRef("")))
+      ((s : Subject) => Triple(s, UriRef(""), UriRef("")))
   }
 
   // subject ::= uriref | namedNode   
@@ -238,3 +238,40 @@ Success(Blank())
 ~~~~
 
 ## Baby Step 2
+Now we need to actually start parsing a real line.  The first place to start is parsing `urirefs`, which are standard URLs wrapped in '<' and '>'.  Let's start by revising our `triple` and `subject` rules as follows:
+
+~~~~ { .scala }
+  private def triple: Rule1[Triple] = rule {
+    zeroOrMore(ws) ~ subject ~ zeroOrMore(ANY) ~>
+      ((s : Subject) => Triple(s, UriRef(""), UriRef("")))
+  }
+
+  // subject ::= uriref | namedNode   
+  private def subject: Rule1[Subject] = rule {
+    '<' ~ capture(zeroOrMore(!'>' ~ ANY)) ~> (UriRef(_))
+  }
+~~~~
+
+Notice that we've added a `zeroOrMore(ANY)` to our `triple` rule.  This allows us to match the subject, which is just one component of a triple, followed by anything else until EOI.
+
+For `subject`, we are specifically looking to capture the content between '<' and '>', which makes the subject a `UriRef` (we'll fix this next).
+
+The result of this change yields:
+
+~~~~ { .bash }
+Success(Blank())
+Success(Blank())
+Success(Comment(This is a comment))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(),UriRef()))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(),UriRef()))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(),UriRef()))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(),UriRef()))
+Failure(org.parboiled2.ParseError)
+Failure(org.parboiled2.ParseError)
+Success(Blank())
+~~~~
+
+Note that our `Triple` now contains one valie `UriRef` and that the last two lines have failed to parse (recall: they are `NamedNodes`).
+
+## Baby Step 3
+
