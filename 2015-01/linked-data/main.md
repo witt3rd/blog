@@ -274,4 +274,45 @@ Success(Blank())
 Note that our `Triple` now contains one valie `UriRef` and that the last two lines have failed to parse (recall: they are `NamedNodes`).
 
 ## Baby Step 3
+Let's now add support for `NamedNodes` and allow `Subject` to be either a `NamedNode` or a `UriRef`.
 
+~~~~ { .scala }
+  // subject ::= uriref | namedNode   
+  private def subject: Rule1[Subject] = rule {
+    uriref | namedNode
+  }
+
+  // uriref ::= '<' absoluteURI '>'  
+  private def uriref: Rule1[UriRef] = rule {
+    '<' ~ capture(zeroOrMore(!'>' ~ ANY)) ~> (UriRef(_))    
+  }
+
+  // namedNode ::= '_:' name  
+  private def namedNode: Rule1[NamedNode] = rule {
+    '_' ~ ':' ~ capture(name) ~> (NamedNode(_))    
+  }
+
+  // name ::= [A-Za-z][A-Za-z0-9]*   
+  private def name = rule {
+    CharPredicate.Alpha ~ zeroOrMore(CharPredicate.AlphaNum)
+  }
+~~~~
+
+Here we have moved the previous parser logic from `subject` into `uriref` and replaced it with either `uriref` or `namedNode` and we've added a parser definition for `namedNode`, which relies on the `name` parser.  This is all quite straightforward and produces the following output:
+
+~~~~ { .bash }
+Success(Blank())
+Success(Blank())
+Success(Comment(This is a comment))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(),UriRef()))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(),UriRef()))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(),UriRef()))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(),UriRef()))
+Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(),UriRef()))
+Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(),UriRef()))
+Success(Blank())
+~~~~
+
+Note that we now successfully get `NamedNodes` as the `Subject` for our last two `Triples`.
+
+## Baby Step 4
