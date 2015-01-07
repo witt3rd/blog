@@ -1,6 +1,6 @@
 # Overview
 
-Our goal is to use the [PEG-based parser](http://en.wikipedia.org/wiki/Parsing_expression_grammar) [Parboild2](https://github.com/sirthias/parboiled2) in order to parse [N-Triples](http://www.w3.org/2001/sw/RDFCore/ntriples) documents as part of [Maana’s](http://maana.io) support for [Linked Data](http://linkeddata.org).
+Our goal is to use the [PEG-based parser](http://en.wikipedia.org/wiki/Parsing_expression_grammar) [Parboild2](https://github.com/sirthias/parboiled2) in order to parse [N-Triples](http://www.w3.org/2001/sw/RDFCore/ntriples) documents as part of [Maana’s](http://www.crunchbase.com/organization/maana) support for [Linked Data](http://linkeddata.org).
 
 Our test project for this article can be found [here](https://github.com/witt3rd/linked-data). We won’t bother going into the setup or basic concepts of PEGs or PB2, since they are all covered well enough on the PB2 Github page (e.g., you should have a basic grasp of the parser stack and RuleN[T] mechanism). Instead, we are going to just dive right in building our grammar and parsing some sample files by incrementally building up the solution through a series of baby steps.  (Yes, this approach would have been well-served by using TDD.)
 
