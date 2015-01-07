@@ -158,10 +158,11 @@ Ah, notice that when it comes to defining a `Triple`, we actually need to have s
 ~~~~ { .scala }
   trait Subject    // A triple's subject; can either be a uriref or namednode
   trait Predicate  // A triple's predicate; can either be a uriref or namednode
-  trait Object     // A triple's object; will always be a uriref
+  trait Object     // A triple's object; will always be a uriref or namednode or literal
 
   case class UriRef(uri: String) extends Subject with Object with Predicate
-  case class NamedNode(name: String) extends Subject with Predicate
+  case class NamedNode(name: String) extends Subject with Object with Predicate
+  case class Literal(value: String) extends Object
 ~~~~
 
 Now that we have some richer types to work with, we need to expand our parser rules.  `Line` really can either be blank or non-blank.  If it is non-blank, then it is either a `Comment` or a `Triple`.
@@ -284,7 +285,7 @@ Let's now add support for `NamedNodes` and allow `Subject` to be either a `Named
 
   // uriref ::= '<' absoluteURI '>'  
   private def uriref: Rule1[UriRef] = rule {
-    '<' ~ capture(zeroOrMore(!'>' ~ ANY)) ~> (UriRef(_))    
+    '<' ~ capture(zeroOrMore(!'>' ~ ANY)) ~ '>' ~> (UriRef(_))    
   }
 
   // namedNode ::= '_:' name  
@@ -298,7 +299,9 @@ Let's now add support for `NamedNodes` and allow `Subject` to be either a `Named
   }
 ~~~~
 
-Here we have moved the previous parser logic from `subject` into `uriref` and replaced it with either `uriref` or `namedNode` and we've added a parser definition for `namedNode`, which relies on the `name` parser.  This is all quite straightforward and produces the following output:
+Here we have moved the previous parser logic from `subject` into `uriref` and replaced it with either `uriref` or `namedNode` and we've added a parser definition for `namedNode`, which relies on the `name` parser.  This is all quite straightforward except for perhaps the definition of `uriref` which is looking for zero or more non-'>' characters *followed by* a '>' character.
+
+This step produces the following output:
 
 ~~~~ { .bash }
 Success(Blank())
@@ -316,3 +319,45 @@ Success(Blank())
 Note that we now successfully get `NamedNodes` as the `Subject` for our last two `Triples`.
 
 ## Baby Step 4
+Now we just need to add back our `Predicate` and `Object` parsers with the appropriate definitions:
+
+~~~~ { .scala }
+  // triple ::= subject ws+ predicate ws+ object ws* '.' ws*   
+  private def triple: Rule1[Triple] = rule { 
+    zeroOrMore(ws) ~ subject ~ 
+    zeroOrMore(ws) ~ predicate ~ 
+    oneOrMore(ws)  ~ obj ~ 
+    zeroOrMore(ws) ~ '.' ~ 
+    zeroOrMore(ws) ~>
+      ((s: Subject, p: Predicate, o: Object) => Triple(s, p, o))
+  }
+
+  // predicate ::= uriref   
+  private def predicate: Rule1[Predicate] = rule {
+    uriref
+  }
+
+  // object ::= uriref | namedNode | literal   
+  private def obj: Rule1[Object] = rule {
+    uriref | namedNode
+  }
+~~~~
+
+Again, nothing surprising here, just an expansion of our `Triple` parser to include `Predicate` and `Object` parses and the addition of definitions for `predicate` and `obj` parsers.  This now yields:
+
+~~~~ { .bash }
+Success(Blank())
+Success(Blank())
+Success(Comment(This is a comment))
+Failure(org.parboiled2.ParseError)
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2000/01/rdf-schema#isDefinedBy),UriRef(http://www.w3.org/2004/02/skos/core)))
+Failure(org.parboiled2.ParseError)
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#type),UriRef(http://www.w3.org/2002/07/owl#Class)))
+Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#first),UriRef(http://www.w3.org/2004/02/skos/core#Concept)))
+Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#rest),NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffd)))
+Success(Blank())
+~~~~
+
+We can now parse almost all the lines --- except we don't have a full definitions of `Object` since we don't yet support `Literals`.
+
+## Baby Step 5
