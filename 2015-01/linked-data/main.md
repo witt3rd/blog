@@ -2,9 +2,9 @@
 
 Our goal is to use the [PEG-based parser](http://en.wikipedia.org/wiki/Parsing_expression_grammar) [Parboild2](https://github.com/sirthias/parboiled2) in order to parse [N-Triples](http://www.w3.org/2001/sw/RDFCore/ntriples) documents as part of [Maana’s](http://maana.io) support for [Linked Data](http://linkeddata.org).
 
-Our test project for this article can be found [here](https://github.com/witt3rd/linked-data). We won’t bother going into the setup or basic concepts of PEGs or PB2, since they are all covered well enough on the PB2 Github page. Instead, we are going to just dive right in building our grammar and parsing some sample files.
+Our test project for this article can be found [here](https://github.com/witt3rd/linked-data). We won’t bother going into the setup or basic concepts of PEGs or PB2, since they are all covered well enough on the PB2 Github page (e.g., you should have a basic grasp of the parser stack and RuleN[T] mechanism). Instead, we are going to just dive right in building our grammar and parsing some sample files by incrementally building up the solution through a series of baby steps.  (Yes, this approach would have been well-served by using TDD.)
 
-Yes, this approach would have been well-served by using TDD...
+My motivation for this (and the approach taken here) is that there are some nuances in PB2 that aren't immediately obvious from the documentation and the examples are either too simplistic or too elaborate.  And the examples are always complete --- you just see the end result without getting a sense for the reasoning behind various decisions.
 
 # N-Triples
 
@@ -122,7 +122,7 @@ object Main {
 
     val triples = ntDoc.lines map {line => new NTriples(line).line.run()}
 
-    triples.foreach(println)
+    triples foreach println
   }  
 }
 ~~~~
@@ -155,7 +155,7 @@ We could filter out those blank lines from the input, but our parser should real
 
 ~~~~
 
-Ah, notice that when it comes to defining a `Triple`, we actually need to have stronger types for `Subject`, `Predicate`, and `Object`.  Because these types have some rules as to what each are allowed to be, we can define some variants: `UriRef` and `NamedNode`.
+Ah, notice that when it comes to defining a `Triple`, we actually need to have stronger types for `Subject`, `Predicate`, and `Object`.  Because these types have some rules as to what each are allowed to be, we can define some variants: `UriRef`, `NamedNode`, and `Literal`.
 
 ~~~~ { .scala }
   trait Subject    // A triple's subject; can either be a uriref or namednode
@@ -274,7 +274,7 @@ Failure(org.parboiled2.ParseError)
 Success(Blank())
 ~~~~
 
-Note that our `Triple` now contains one valie `UriRef` and that the last two lines have failed to parse (recall: they are `NamedNodes`).
+Note that our `Triple` now contains one valid `UriRef` and that the last two lines have failed to parse (recall: they are `NamedNodes`).
 
 # Baby Step 3: NamedNodes and UriRefs
 Let's now add support for `NamedNodes` and allow `Subject` to be either a `NamedNode` or a `UriRef`.
@@ -392,6 +392,159 @@ Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http:/
 Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#first),UriRef(http://www.w3.org/2004/02/skos/core#Concept)))
 Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#rest),NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffd)))
 Success(Blank())
+~~~~
+
+# Error Handling
+So far, our parse errors have come from our lack of support for the format.  Now that the parser works, let's see how to deal with the results, including errors.
+
+## Better Driver
+Let's first make our driver a bit more sophisticated and refactor things a bit.  What we want to do is retain our trivial test, since it is very easy to understand what's going on, but also now take a filename specifying an .nt file and process it line-by-line.
+
+Additionally, let's refactor things a bit by having a common parse method that accepts a line iterator and performs the parse and prints out the results.
+
+Lastly, let's introduce an error into our test data.
+
+~~~~ { .scala }
+package linkedData
+
+import scala.collection.immutable
+import scala.io.Source
+
+object Main {
+  def main(args: Array[String]) : Unit = {
+
+    unitTest()
+    //return
+
+    if (args.size < 1) {
+      println("missing .nt file")
+      return
+    }
+
+    val Array(ntFile) = args
+
+    val lines = Source.fromFile(ntFile).getLines()
+    parse(lines)
+  }
+
+  private def parse(lines: Iterator[String]) : Unit = {
+    val triples = lines map {l => new NTriples(l).line.run()}
+    triples foreach println
+  }
+
+  private def unitTest() : Unit = {
+
+    val ntDoc = 
+    """
+
+# This is a comment
+<http://www.w3.org/2004/02/skos/core#Concept> <http://www.w3.org/2000/01/rdf-schema#label> "Concept"@en .
+<http://www.w3.org/2004/02/skos/core#Concept> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.w3.org/2004/02/skos/core> .
+<http://www.w3.org/2004/02/skos/core#Concept> <http://www.w3.org/2004/02/skos/core#definition> "An idea or notion; a unit of thought."@en .
+<http://www.w3.org/2004/02/skos/core#Concept> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+_:BX2Db3de8bfX3A149861d9206X3AX2D7ffe <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> <http://www.w3.org/2004/02/skos/core#Concept> .
+!!! ERROR ERROR ERROR ERROR ERROR
+_:BX2Db3de8bfX3A149861d9206X3AX2D7ffe <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:BX2Db3de8bfX3A149861d9206X3AX2D7ffd .
+    """
+
+    parse(ntDoc.lines)
+  }
+}
+~~~~
+
+The output is the same as previously except for the newly introduced parse error.
+
+## Companion Object
+Since the next thing we wish to do is access the results, whether success or failure, we need to refactor our parser module by extracting our result object definitions from the class instance into a companion object.
+
+~~~~ { .scala }
+object NTriples {
+  // Main parsed types
+  trait Line       // A parsed line; can either be Blank, Comment, or Triple
+  trait Subject    // A triple's subject; can either be a uriref or namednode
+  trait Predicate  // A triple's predicate; can either be a uriref or namednode
+  trait Object     // A triple's object; will always be a uriref or or namednode or literal
+
+  case class UriRef(uri: String) extends Subject with Object with Predicate
+  case class NamedNode(name: String) extends Subject with Object with Predicate
+  case class Literal(value: String) extends Object
+
+  case class Blank() extends Line
+  case class Comment(text: String) extends Line
+  case class Triple(subj: Subject, pred: Predicate, obj: Object) extends Line
+}
+
+class NTriples(val input: ParserInput) extends Parser {
+
+  import NTriples._
+
+  ...
+~~~~
+
+With this change, the caller can import these definitions and use them to handle the results.
+
+## Matching Results
+The parser returns either `Success` or `Failure` (part of Scala's `util` library).  If it is `Success`, it will be one of our objects (`Blank`, `Comment`, or `Triple`).  If it is a `Failure`, it will either be a `ParseError` or other (unexpected) error.
+
+There is a problem in our current formulation: we iterate through the lines and create a new parser and perform the parse, storing the result in a new collection.  But when a `ParseError` occurs, we need the actual parser *instance* in order to format it properly.
+
+To deal with this situation, let's construct the parser, parse the line, and if there is an error, capture the formatted error *in situ*, returning it as a `Failure`, otherwise passing the original result directly through.  This is just translating the error inline.
+
+Let's add this to our companion object as a helper function.
+
+~~~~ { .scala }
+import scala.util.{ Try, Success, Failure }
+
+object NTriples {
+
+  ...
+
+  def parse(lines: Iterator[String]) : Iterator[Try[Line]] = {
+    lines map {l => 
+      val p = new NTriples(l)
+      p.line.run() match {
+        case Failure(e: ParseError) => Failure(new Exception(p.formatError(e)))
+        case x                      => x
+      }
+    }    
+  }
+}
+~~~~
+
+## Updated Driver, Better Printing
+We can now use the helper function and the deal with the results.
+
+~~~~ { .scala }
+import scala.util.{Success, Failure}
+import org.parboiled2.{ParseError}
+
+...
+
+  private def parse(lines: Iterator[String]) : Unit = {
+    import NTriples._
+
+    val triples = NTriples.parse(lines)
+
+    triples foreach {_ match {
+        case Success(t@Triple(s,p,o)) => println(t)
+        case Success(_)               =>
+        case Failure(e: Throwable)    => println("Expression is not valid: " + e)
+      }}
+  }
+~~~~
+
+We now just print out valid `Triples` and any parse errors.  Here, then, is the final output using our little test data:
+
+~~~~ { .bash }
+Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2000/01/rdf-schema#label),Literal(Concept))
+Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2000/01/rdf-schema#isDefinedBy),UriRef(http://www.w3.org/2004/02/skos/core))
+Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2004/02/skos/core#definition),Literal(An idea or notion; a unit of thought.))
+Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#type),UriRef(http://www.w3.org/2002/07/owl#Class))
+Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#first),UriRef(http://www.w3.org/2004/02/skos/core#Concept))
+Expression is not valid: java.lang.Exception: Invalid input '!', expected space, tab, 'EOI', '#', '<' or '_' (line 1, column 1):
+!!! ERROR ERROR ERROR ERROR ERROR
+^
+Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#rest),NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffd))
 ~~~~
 
 # Conclusion
