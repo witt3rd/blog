@@ -4,7 +4,9 @@ Our goal is to use the [PEG-based parser](http://en.wikipedia.org/wiki/Parsing_e
 
 Our test project for this article can be found [here](https://github.com/witt3rd/linked-data). We won’t bother going into the setup or basic concepts of PEGs or PB2, since they are all covered well enough on the PB2 Github page. Instead, we are going to just dive right in building our grammar and parsing some sample files.
 
-## N-Triples
+Yes, this approach would have been well-served by using TDD...
+
+# N-Triples
 
 The N-Triples format is dead simple: a series of lines consisting of a {subject, predicate, object} triple followed by a period. For example, the following are a few random lines of [OWL](http://en.wikipedia.org/wiki/Web_Ontology_Language):
 
@@ -19,7 +21,7 @@ _:BX2Db3de8bfX3A149861d9206X3AX2D7ffe <http://www.w3.org/1999/02/22-rdf-syntax-n
 
 There are three types of values that comprise a triple: urirefs, namedNodes, and literals. The BNF lends itself straightforwardly to our parse rules.
 
-## Baby Step 0
+# Baby Step 0: Scaffold
 
 The first decision we need to make is how we will feed text to our parser: the whole document or line-by-line. As some of the datasets we wish to ingest can be quite large (e.g., [YAGO](http://www.mpi-inf.mpg.de/departments/databases-and-information-systems/research/yago-naga/yago/) weighs in at 18.5GB uncompressed), it seems to make more sense to parse line-by-line.
 
@@ -140,7 +142,7 @@ Success(Triple(    ,    ,    ))
 
 Not exactly what we want, but it’s a start…
 
-## Baby Step 1
+# Baby Step 1: Line Types
 
 We could filter out those blank lines from the input, but our parser should really deal with those, since they could come from the files that way.  We could also return an `Option` or an `Either`, but the return type of the `Parser` is already a `Success`.  Instead, let's define a `Line` type and derive the possible variants: `Blank` lines, `Comment` lines, and actual `Triples`.
 
@@ -180,7 +182,7 @@ For a blank line, we have a rule which is looking for 0+ whitespace characters f
 
 For a non-blank line, we have a rule that expects either a `Comment` or a `Triple` followed by EOI.
 
-### Whitespace
+## Whitespace
 One of the often cited downsides of using PEGs is the need to deal with whitespace explicitly, instead of having a lexer deal with it.  Let's first define what we mean by whitespace and fill in the BNF definitions we are given:
 
 ~~~~ { .scala }
@@ -196,7 +198,7 @@ One of the often cited downsides of using PEGs is the need to deal with whitespa
 
 Whitespace, for us, is just a space or tab character.  `CharPredicates` are predefined for a number of different character groups, such as digits, alpha, etc.  They are rules of type Rule0, so they just consume their matching input and push nothing onto the stack.  In this case, we create a custom predicate for each of the characters we are interested in (space and tab).
 
-### Comments
+## Comments
 A comment is simply a line that begins with '#'.  We want to *capture* the comment text and return it.  In PB2, capturing places a string onto the stack.  Here, we use the predefined character predicate `Printable`:
 
 ~~~~ { .scala }
@@ -207,7 +209,7 @@ A comment is simply a line that begins with '#'.  We want to *capture* the comme
   }
 ~~~~
 
-### Triples
+## Triples
 The last top-level object we are interested in is the actual `Triple`.  A triple is a `Subject`, `Predicate`, `Object` followed by a '.', taking into account whitespace.  But for now, in the spirit of baby steps, let's just stub out the `Subject` with a simple line and ignore the other two types.
 
 ~~~~ { .scala }
@@ -238,7 +240,7 @@ Success(Triple(UriRef(_:BX2Db3de8bfX3A149861d9206X3AX2D7ffe <http://www.w3.org/1
 Success(Blank())
 ~~~~
 
-## Baby Step 2
+# Baby Step 2: UriRefs
 Now we need to actually start parsing a real line.  The first place to start is parsing `urirefs`, which are standard URLs wrapped in '<' and '>'.  Let's start by revising our `triple` and `subject` rules as follows:
 
 ~~~~ { .scala }
@@ -274,7 +276,7 @@ Success(Blank())
 
 Note that our `Triple` now contains one valie `UriRef` and that the last two lines have failed to parse (recall: they are `NamedNodes`).
 
-## Baby Step 3
+# Baby Step 3: NamedNodes and UriRefs
 Let's now add support for `NamedNodes` and allow `Subject` to be either a `NamedNode` or a `UriRef`.
 
 ~~~~ { .scala }
@@ -318,7 +320,7 @@ Success(Blank())
 
 Note that we now successfully get `NamedNodes` as the `Subject` for our last two `Triples`.
 
-## Baby Step 4
+# Baby Step 4: Objects and Predicates
 Now we just need to add back our `Predicate` and `Object` parsers with the appropriate definitions:
 
 ~~~~ { .scala }
@@ -360,4 +362,39 @@ Success(Blank())
 
 We can now parse almost all the lines --- except we don't have a full definitions of `Object` since we don't yet support `Literals`.
 
-## Baby Step 5
+# Baby Step 5: Literals
+Going by the spec, `Literals` are just strings.  However, the reality is that these strings often have the language specifiers added.  This complicates parsing a little bit.
+
+~~~~ { .scala }
+  // object ::= uriref | namedNode | literal   
+  private def obj: Rule1[Object] = rule {
+    uriref | namedNode | literal
+  }
+
+  // literal ::= '"' string '"'   
+  private def literal: Rule1[Literal] = rule {
+    '\"' ~ capture(zeroOrMore(!'\"' ~ ANY)) ~ '\"' ~ zeroOrMore(!'.' ~ ANY) ~> (Literal(_))
+  }
+~~~~
+
+First, we extend the definition of `obj` to include `literal`.  Next, we define the rule for `literals` as being a string (any characters between double quotes) followed by any non-'.' characters (since '.' signifies the end of the line).  Of course, this fails to account for embedded escapes, etc., but we can add these things later.  For now, we just want to get the majority of cases working.
+
+Finally, the output for our test input is:
+
+~~~~ { .bash }
+Success(Blank())
+Success(Blank())
+Success(Comment(This is a comment))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2000/01/rdf-schema#label),Literal(Concept)))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2000/01/rdf-schema#isDefinedBy),UriRef(http://www.w3.org/2004/02/skos/core)))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2004/02/skos/core#definition),Literal(An idea or notion; a unit of thought.)))
+Success(Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#type),UriRef(http://www.w3.org/2002/07/owl#Class)))
+Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#first),UriRef(http://www.w3.org/2004/02/skos/core#Concept)))
+Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#rest),NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffd)))
+Success(Blank())
+~~~~
+
+# Conclusion
+More checking (such as URLs are really URLs) needs to be done, but this is the basic gist of it.
+
+For the fully working version with more tests and driver, check it out on [Github](https://github.com/witt3rd/linked-data).
