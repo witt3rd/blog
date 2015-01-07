@@ -144,7 +144,7 @@ Not exactly what we want, but it’s a start…
 
 # Baby Step 1: Line Types
 
-We could filter out those blank lines from the input, but our parser should really deal with those, since they could come from the files that way.  We could also return an `Option` or an `Either`, but the return type of the `Parser` is already a `Success`.  Instead, let's define a `Line` type and derive the possible variants: `Blank` lines, `Comment` lines, and actual `Triples`.
+We could filter out those blank lines from the input, but our parser should really deal with those, since they could come from the files that way.  We could also return an `Option` or an `Either`, but the return type of the `Parser` is already a `Try[T]`.  Instead, let's define a `Line` type and derive the possible variants: `Blank` lines, `Comment` lines, and actual `Triples`.
 
 ~~~~ { .scala }
   trait Line       // A parsed line; can either be Blank, Comment, or Triple
