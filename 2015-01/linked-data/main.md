@@ -428,6 +428,46 @@ Next, we expand the rule definition for `literal` to include these *optional* co
 
 The additional rule definitions should be straightforward.  The only new construct is the use of `x.times`, which is a nifty way of specifying either an exact number or a range (i.e., `(1..5).times`).  Note also how we were able to reuse our `uriref` rule, keeping us [DRY](http://en.wikipedia.org/wiki/Don't_repeat_yourself).
 
+We should expand our simple test case to check that this works accordingly:
+
+~~~~ { .scala }
+  private def unitTest() : Unit = {
+
+    val ntDoc = 
+    """
+
+# This is a comment
+<http://www.w3.org/2004/02/skos/core#Concept> <http://www.w3.org/2000/01/rdf-schema#label> "Concept"@de .
+<http://www.w3.org/2004/02/skos/core#Concept> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.w3.org/2004/02/skos/core> .
+<http://www.w3.org/2004/02/skos/core#Concept> <http://www.w3.org/2004/02/skos/core#definition> "An idea or notion; a unit of thought."^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.w3.org/2004/02/skos/core#Concept> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+_:BX2Db3de8bfX3A149861d9206X3AX2D7ffe <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> <http://www.w3.org/2004/02/skos/core#Concept> .
+!!! ERROR ERROR ERROR ERROR ERROR
+_:BX2Db3de8bfX3A149861d9206X3AX2D7ffe <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:BX2Db3de8bfX3A149861d9206X3AX2D7ffd .
+    """
+
+    parse(ntDoc.lines)
+  }
+~~~~
+
+Note that we've added `@de` to the first literal and `^^<http://www.w3.org/2001/XMLSchema#string>` to the second.
+
+And now the output is:
+
+~~~~ { .bash }
+Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2000/01/rdf-schema#label),Literal(Concept,Some(de),None))
+Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2000/01/rdf-schema#isDefinedBy),UriRef(http://www.w3.org/2004/02/skos/core))
+Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/2004/02/skos/core#definition),Literal(An idea or notion; a unit of thought.,None,Some(UriRef(http://www.w3.org/2001/XMLSchema#string))))
+Triple(UriRef(http://www.w3.org/2004/02/skos/core#Concept),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#type),UriRef(http://www.w3.org/2002/07/owl#Class))
+Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#first),UriRef(http://www.w3.org/2004/02/skos/core#Concept))
+Expression is not valid: java.lang.Exception: Invalid input '!', expected space, tab, 'EOI', '#', '<' or '_' (line 1, column 1):
+!!! ERROR ERROR ERROR ERROR ERROR
+^
+Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#rest),NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffd))
+~~~~
+
+So, now, for each `Literal`, we have optional lang and data type qualifiers.
+
 # Error Handling
 So far, our parse errors have come from our lack of support for the format.  Now that the parser works, let's see how to deal with the results, including errors.
 
