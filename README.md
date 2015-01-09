@@ -1,4 +1,4 @@
 blog
 ====
 
-blog sources
+[blog](http://witt3rd.com) sources
