@@ -1,6 +1,6 @@
 # Overview
 
-Our goal is to use the [PEG-based parser](http://en.wikipedia.org/wiki/Parsing_expression_grammar) [Parboild2](https://github.com/sirthias/parboiled2) in order to parse [N-Triples](http://www.w3.org/2001/sw/RDFCore/ntriples) documents as part of [Maana’s](http://www.crunchbase.com/organization/maana) support for [Linked Data](http://linkeddata.org).
+Our goal is to use the [PEG-based parser](http://en.wikipedia.org/wiki/Parsing_expression_grammar) [Parboiled2](https://github.com/sirthias/parboiled2) in order to parse [N-Triples](http://www.w3.org/2001/sw/RDFCore/ntriples) documents as part of [Maana’s](http://www.crunchbase.com/organization/maana) support for [Linked Data](http://linkeddata.org).
 
 Our test project for this article can be found [here](https://github.com/witt3rd/linked-data). We won’t bother going into the setup or basic concepts of PEGs or PB2, since they are all covered well enough on the PB2 Github page (e.g., you should have a basic grasp of the parser stack and RuleN[T] mechanism). Instead, we are going to just dive right in building our grammar and parsing some sample files by incrementally building up the solution through a series of baby steps.  (Yes, this approach would have been well-served by using TDD.)
 
@@ -102,8 +102,6 @@ Here’s a trivial driver to get us going:
 ~~~~ { .scala }
 package linkedData
 
-import scala.collection.immutable
-
 object Main {
   def main(args: Array[String]) : Unit = {
 
@@ -152,7 +150,6 @@ We could filter out those blank lines from the input, but our parser should real
   case class Blank() extends Line
   case class Comment(text: String) extends Line
   case class Triple(subj: Subject, pred: Predicate, obj: Object) extends Line
-
 ~~~~
 
 Ah, notice that when it comes to defining a `Triple`, we actually need to have stronger types for `Subject`, `Predicate`, and `Object`.  Because these types have some rules as to what each are allowed to be, we can define some variants: `UriRef`, `NamedNode`, and `Literal`.
@@ -363,7 +360,7 @@ Success(Blank())
 We can now parse almost all the lines --- except we don't have a full definitions of `Object` since we don't yet support `Literals`.
 
 # Baby Step 5: Literals
-Going by the spec, `Literals` are just strings.  However, the reality is that these strings often have the language specifiers added.  This complicates parsing a little bit.
+Going by the spec, `Literals` are just strings.  However, the reality is that these strings often have the language and data type specifiers added.  This complicates parsing a little bit.  Let's start simply, then handle the extended cases.
 
 ~~~~ { .scala }
   // object ::= uriref | namedNode | literal   
@@ -393,6 +390,43 @@ Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.
 Success(Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1999/02/22-rdf-syntax-ns#rest),NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffd)))
 Success(Blank())
 ~~~~
+
+## Language and Data Type Qualifiers
+As previously mentioned, literals can have additional information associated with them, such as their data type and, if a string, then their language.  To capture this additional information, we must first extend our definition of `Literal` as follows:
+
+~~~~ { .scala }
+  case class Literal(
+    value: String,
+    lang: Option[String],
+    dataType: Option[UriRef]
+    ) extends Object
+~~~~
+
+We are using `Options` because, well, these are optional.
+
+Next, we expand the rule definition for `literal` to include these *optional* components in an intuitive way using the PB2 `optional` rule, which always succeeds but wraps its result in an `Option', which is exactly what we want.
+
+~~~~ { .scala }
+  // literal ::= '"' string '"'   
+  private def literal: Rule1[Literal] = rule {
+    quotedString ~ optional(lang) ~ optional(dataType) ~> 
+      ((v:String, l:Option[String], t:Option[UriRef]) => Literal(v,l,t))
+  }
+
+  private def quotedString: Rule1[String] = rule {
+    '\"' ~ capture(zeroOrMore(!'\"' ~ ANY)) ~ '\"'
+  }
+
+  private def lang: Rule1[String] = rule {
+    '@' ~ capture(2.times(CharPredicate.Alpha))
+  }
+
+  private def dataType: Rule1[UriRef] = rule {
+    2.times('^') ~ uriref
+  }
+~~~~
+
+The additional rule definitions should be straightforward.  The only new construct is the use of `x.times`, which is a nifty way of specifying either an exact number or a range (i.e., `(1..5).times`).  Note also how we were able to reuse our `uriref` rule, keeping us [DRY](http://en.wikipedia.org/wiki/Don't_repeat_yourself).
 
 # Error Handling
 So far, our parse errors have come from our lack of support for the format.  Now that the parser works, let's see how to deal with the results, including errors.
