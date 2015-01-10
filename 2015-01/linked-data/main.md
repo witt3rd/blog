@@ -2,9 +2,11 @@
 
 Our goal is to use the [PEG-based parser](http://en.wikipedia.org/wiki/Parsing_expression_grammar) [Parboiled2](https://github.com/sirthias/parboiled2) in order to parse [N-Triples](http://www.w3.org/2001/sw/RDFCore/ntriples) documents as part of [Maana’s](http://www.crunchbase.com/organization/maana) support for [Linked Data](http://linkeddata.org).
 
-Our test project for this article can be found [here](https://github.com/witt3rd/linked-data). We won’t bother going into the setup or basic concepts of PEGs or PB2, since they are all covered well enough on the PB2 Github page (e.g., you should have a basic grasp of the parser stack and RuleN[T] mechanism). Instead, we are going to just dive right in building our grammar and parsing some sample files by incrementally building up the solution through a series of baby steps.  (Yes, this approach would have been well-served by using TDD.)
+Our test project for this article can be found [here](https://github.com/witt3rd/linked-data).
 
-My motivation for this (and the approach taken here) is that there are some nuances in PB2 that aren't immediately obvious from the documentation and the examples are either too simplistic or too elaborate.  And the examples are always complete --- you just see the end result without getting a sense for the reasoning behind various decisions.
+We won’t bother going into the setup or basic concepts of PEGs or PB2, since they are all covered well enough on the PB2 Github page (e.g., you should have a basic grasp of the parser stack and RuleN[T] mechanism). Instead, we are going to just dive right in building our grammar and parsing some sample files by incrementally building up the solution through a series of baby steps.  (Yes, this approach would have been well-served by using TDD.)
+
+The motivation for this (and the approach taken here) is that there are some nuances in PB2 that aren't immediately obvious from the documentation and the examples are either too simplistic or too elaborate.  And the examples are always complete --- you just see the end result without getting a sense for the reasoning behind various decisions.  We will build up our solution in baby steps and I will explain the rationale behind each one and point out any interesting features of PB2 that are used along the way.
 
 # N-Triples
 
@@ -195,6 +197,8 @@ One of the often cited downsides of using PEGs is the need to deal with whitespa
 
 Whitespace, for us, is just a space or tab character.  `CharPredicates` are predefined for a number of different character groups, such as digits, alpha, etc.  They are rules of type Rule0, so they just consume their matching input and push nothing onto the stack.  In this case, we create a custom predicate for each of the characters we are interested in (space and tab).
 
+Note that we have chosen to stick with the original BNF here, but we could just as easily shortened this definition using `CharPredicate(" \t")` as the rule for `ws`.
+
 ## Comments
 A comment is simply a line that begins with '#'.  We want to *capture* the comment text and return it.  In PB2, capturing places a string onto the stack.  Here, we use the predefined character predicate `Printable`:
 
@@ -255,6 +259,8 @@ Now we need to actually start parsing a real line.  The first place to start is 
 Notice that we've added a `zeroOrMore(ANY)` to our `triple` rule.  This allows us to match the subject, which is just one component of a triple, followed by anything else until EOI.
 
 For `subject`, we are specifically looking to capture the content between '<' and '>', which makes the subject a `UriRef` (we'll fix this next).
+
+Note the construction `!'>' ~ ANY`, which says *not* '>' followed by any other character.  An alternative to this approach would be to subtract out the '>' from the set of any characters, as in: `ANY -- '>'`.
 
 The result of this change yields:
 
@@ -418,7 +424,7 @@ Next, we expand the rule definition for `literal` to include these *optional* co
   }
 
   private def lang: Rule1[String] = rule {
-    '@' ~ capture(2.times(CharPredicate.Alpha))
+    '@' ~ capture(oneOrMore(CharPredicate.Printable))
   }
 
   private def dataType: Rule1[UriRef] = rule {
@@ -431,8 +437,6 @@ The additional rule definitions should be straightforward.  The only new constru
 We should expand our simple test case to check that this works accordingly:
 
 ~~~~ { .scala }
-  private def unitTest() : Unit = {
-
     val ntDoc = 
     """
 
@@ -445,9 +449,6 @@ _:BX2Db3de8bfX3A149861d9206X3AX2D7ffe <http://www.w3.org/1999/02/22-rdf-syntax-n
 !!! ERROR ERROR ERROR ERROR ERROR
 _:BX2Db3de8bfX3A149861d9206X3AX2D7ffe <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:BX2Db3de8bfX3A149861d9206X3AX2D7ffd .
     """
-
-    parse(ntDoc.lines)
-  }
 ~~~~
 
 Note that we've added `@de` to the first literal and `^^<http://www.w3.org/2001/XMLSchema#string>` to the second.
@@ -467,6 +468,60 @@ Triple(NamedNode(BX2Db3de8bfX3A149861d9206X3AX2D7ffe),UriRef(http://www.w3.org/1
 ~~~~
 
 So, now, for each `Literal`, we have optional lang and data type qualifiers.
+
+## Building Strings with Escapes and Unicode
+Unfortunately, strings just aren't that simple.  The next case we need to deal with is embedded escape characters.  Fortunately, the excellent example provided by PB2 for [parsing JSON](https://github.com/sirthias/parboiled2/blob/master/examples/src/main/scala/org/parboiled2/examples/JsonParser.scala) has already solved this problem AND deals with Unicode strings.  Perfect!  Let's borrow this!
+
+First, we're going to need to add support for building string during our parse.  This is like manually controlling the `capture` that we've already seen.  To add this support, we need to extend our class with `StringBuilding`, then we have some new capabilities: `clearSB`, `appendSB`, and `sb.toString` (among others).
+
+~~~~ { .scala }
+class NTriples(val input: ParserInput) extends Parser with StringBuilding {
+
+  ...
+
+  private def quotedString: Rule1[String] = rule {
+    '"' ~ clearSB() ~ Characters ~ '"' ~ push(sb.toString)
+  }
+~~~~
+
+Here we have also updated our definition of `quotedString` to include our manual string building and introduced a new parse rule, `Characters`, taken from the JSON example:
+
+~~~~ { .scala }
+  def Characters = rule { zeroOrMore(NormalChar | '\\' ~ EscapedChar) }
+
+  def NormalChar = rule { !QuoteBackslash ~ ANY ~ appendSB() }
+
+  def EscapedChar = rule (
+    QuoteSlashBackSlash ~ appendSB()
+      | 'b' ~ appendSB('\b')
+      | 'f' ~ appendSB('\f')
+      | 'n' ~ appendSB('\n')
+      | 'r' ~ appendSB('\r')
+      | 't' ~ appendSB('\t')
+      | Unicode ~> { code => sb.append(code.asInstanceOf[Char]); () }
+  )
+
+  def Unicode = rule { 'u' ~ capture(HexDigit ~ HexDigit ~ HexDigit ~ HexDigit) ~> (java.lang.Integer.parseInt(_, 16)) }
+
+  val QuoteBackslash = CharPredicate("\"\\")
+  val QuoteSlashBackSlash = QuoteBackslash ++ "/"
+~~~~
+
+This is all pretty straightforward stuff: a string is 0+ normal or escaped characters.  Note the `appendSB` in `NormalChar`, which is just capturing the single character that was parsed into the string buffer.
+
+The `EscapedChar` rule is just re-insterting the escapes as it detects them plus translating Unicode characters into actual Unicode strings.
+
+The last thing to note is the use of `HexDigit`.  This is due to a direct import:
+
+~~~~ { .scala }
+  import CharPredicate.{HexDigit}
+~~~~
+
+In fact, let's clean our own code up by using these shortcuts:
+
+~~~~ { .scala }
+  import CharPredicate.{Alpha, AlphaNum, HexDigit, Printable}
+~~~~
 
 # Error Handling
 So far, our parse errors have come from our lack of support for the format.  Now that the parser works, let's see how to deal with the results, including errors.
