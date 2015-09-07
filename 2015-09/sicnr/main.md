@@ -9,7 +9,7 @@
 Inspired by [What I Wish I Knew When Learning Haskell](http://dev.stephendiehl.com/hask/), I am collecting a series of small articles on various topics that I frequently need/use but just can't ever seem to remember the details of.
 
 ## BlogLiterately
-This very blog is edited on a Mac (using [Mou](http://25.io/mou/)), stored on [my GitHub](https://github.com/witt3rd/blog), and uploaded to [this site](witt3rd.com) using Brent Yorgey's [BlogLiterately](https://byorgey.wordpress.com/blogliterately/) tool:
+This very blog is edited on a Mac (using [Mou](http://25.io/mou/)), stored on [my GitHub](https://github.com/witt3rd/blog), and uploaded to [this site](http://witt3rd.com) using Brent Yorgey's [BlogLiterately](https://byorgey.wordpress.com/blogliterately/) tool:
 
     /.cabal-sandbox/bin/BlogLiterately ./2015-09/sicnr/main.md
 
