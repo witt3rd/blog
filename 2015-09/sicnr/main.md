@@ -81,3 +81,18 @@ After `brew install emacs --with-cocoa` it's all about configuration.  Again, I 
 ## iTerm 2
 
 ## ZSH
+
+## GitHub
+Stuff I can never remember:
+
+### Create Local, Push to GitHub
+Often I will start a project locally then want to push it to GitHub.  This was described on [Stack Overflow](http://stackoverflow.com/questions/11276364/after-creating-a-local-git-repo-how-do-i-push-it-on-github):
+
+    git init
+    git add .
+    git commit -m"initial"
+    
+Need to greate the repo on GitHub. Then:
+
+    git remote add origin <foo.git>
+    git push --all -u origin
