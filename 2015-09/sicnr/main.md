@@ -76,14 +76,39 @@ In a new directory:
 ## Emacs
 After `brew install emacs --with-cocoa` it's all about configuration.  Again, I use a symlinked `.emacs.d` to my Dropbox to keep things synchronized across my boxes.
 
+    ln -sFv ~/Dropbox/.emacs.d ~/.emacs.d
+
+Definitely setup the packages:
+
+
+
 ### Haskell
+Here's a nice tutorial by [Alejandro Serras](https://github.com/serras/emacs-haskell-tutorial/blob/master/tutorial.md).
+
+In general:
+
+    cabal update
+    cabal install happy hasktags stylish-haskell hlint hoogle structured-haskell-mode hindent
+
+[GHC-MOD](https://github.com/kazu-yamamoto/ghc-mod) At the time of this writing, there was funky stuff going on with `ghc-mod`, so I was having to build it fom scratch and copy it into the cabal location:
+
+    git clone https://github.com/kazu-yamamoto/ghc-mod
+    cd ghc-mod
+    cabal sandbox init
+    cabal install --only-dependencies
+    cabal build
+    
+ensure that ghc-mod and ghc-modi are removed from .cabal/bin and .cabal/packages...
+
+copy ghc-mod and ghc-modi binaries from ghc-mod/dist/ghc-mod and ghc-mod/dist/ghc-modi directories respectively to .cabal/bin
 
 ## iTerm 2
+The venerable [terminal emulator](https://iterm2.com/index.html) for OS X.
 
-## ZSH
+## Z Shell (zsh)
+Some say it is better than bash.  [Zsh](http://www.zsh.org).  It has many features that I've never used.
 
 ## GitHub
-Stuff I can never remember:
 
 ### Create Local, Push to GitHub
 Often I will start a project locally then want to push it to GitHub.  This was described on [Stack Overflow](http://stackoverflow.com/questions/11276364/after-creating-a-local-git-repo-how-do-i-push-it-on-github):
@@ -96,3 +121,6 @@ Need to greate the repo on GitHub. Then:
 
     git remote add origin <foo.git>
     git push --all -u origin
+    
+## Category Theory
+[Category Theory for Programmers](http://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface/)
