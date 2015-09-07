@@ -53,7 +53,7 @@ Always keep things up-to-date:
     brew upgrade
     
 ### Synchronizing Brews
-I use several different computers and I like to keep things synchronized.  For Homebrew, there is a simple little script (brew-sync.sh)[https://gist.github.com/jpawlowski/5248465].  It will take your current brew configuration and merge it with one on your Dropbox (`~/Dropbox/Apps/Homebrew`).  So, if you already have a bunch of cruft on the box you are trying to sync, it is best to clear out the old brew first:
+I use several different computers and I like to keep things synchronized.  For Homebrew, there is a simple little script [brew-sync.sh](https://gist.github.com/jpawlowski/5248465).  It will take your current brew configuration and merge it with one on your Dropbox (`~/Dropbox/Apps/Homebrew`).  So, if you already have a bunch of cruft on the box you are trying to sync, it is best to clear out the old brew first:
 
     ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/uninstall)"
     
@@ -98,9 +98,9 @@ In general:
     cabal install --only-dependencies
     cabal build
     
-ensure that ghc-mod and ghc-modi are removed from .cabal/bin and .cabal/packages...
+Ensure that ghc-mod and ghc-modi are removed from .cabal/bin and .cabal/packages...
 
-copy ghc-mod and ghc-modi binaries from ghc-mod/dist/ghc-mod and ghc-mod/dist/ghc-modi directories respectively to .cabal/bin
+Copy ghc-mod and ghc-modi binaries from ghc-mod/dist/ghc-mod and ghc-mod/dist/ghc-modi directories respectively to .cabal/bin
 
 ## iTerm 2
 The venerable [terminal emulator](https://iterm2.com/index.html) for OS X.
