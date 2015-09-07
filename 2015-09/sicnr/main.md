@@ -1,2 +1,2 @@
-# What I Can't Remember
+# Stuff I Can Never Remember
 Inspired by [What I Wish I Knew When Learning Haskell](http://dev.stephendiehl.com/hask/), I am collecting a series of small articles on various topics that I frequently need/use but just can't ever seem to remember the details of.
